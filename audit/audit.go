@@ -3,6 +3,7 @@ package audit
 import (
 	"context"
 	"database/sql"
+	"errors"
 )
 
 // external dependencies
@@ -15,6 +16,8 @@ type (
 		WithTx(ctx context.Context, fn func(db SqlDB) error, opts *sql.TxOptions) error
 	}
 )
+
+var ErrAuditNotFound = errors.New("audit not found")
 
 type Audit struct {
 	ID          int64  `json:"id,omitempty"`
@@ -64,8 +67,8 @@ func (audit *Audit) saveItems(db SqlDB, c items) error {
 	return nil
 }
 
-func (audit *Audit) updateIn(db SqlDB) (err error) {
-	_, err = db.Exec(`
+func (audit *Audit) updateIn(db SqlDB) error {
+	var result, err = db.Exec(`
 		UPDATE audit.audit SET
 			year  = $2,
 			month = $3,
@@ -77,5 +80,19 @@ func (audit *Audit) updateIn(db SqlDB) (err error) {
 	`,
 		audit.ID, audit.Year, audit.Month, audit.Num, audit.ThorAuditID, audit.AuditorID, audit.IsSpecial,
 	)
-	return err
+
+	if err != nil {
+		return err
+	}
+
+	var affected int64
+	if affected, err = result.RowsAffected(); err != nil {
+		return err
+	}
+
+	if affected == 0 {
+		return ErrAuditNotFound
+	}
+
+	return nil
 }

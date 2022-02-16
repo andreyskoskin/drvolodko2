@@ -2,6 +2,7 @@ package webapi
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -18,23 +19,35 @@ func newAuditAPI(db *postgres) *auditAPI {
 	return &auditAPI{db}
 }
 
-func (a *auditAPI) install(g *echo.Group) {
-	g.PUT("/:id", a.put)
+func (api *auditAPI) install(g *echo.Group) {
+	g.PUT("/:id", api.put)
 }
 
-func (a *auditAPI) put(ctx echo.Context) (err error) {
+func (api *auditAPI) put(ctx echo.Context) (err error) {
 	var id int64
 	if id, err = strconv.ParseInt(ctx.Param("id"), 10, 64); err != nil {
-		return ctx.JSON(http.StatusBadRequest, BadRequest{Message: "invalid id"})
+		return ctx.JSON(http.StatusBadRequest, Message{"invalid id"})
 	}
 
 	var audit model.Audit
 	if err = ctx.Bind(&audit); err != nil {
-		return ctx.JSON(http.StatusBadRequest, BadRequest{Message: err.Error()})
+		return ctx.JSON(http.StatusBadRequest, Message{err.Error()})
 	}
 
 	audit.ID = id
-	err = audit.SaveTo(a.db, context.Background())
+	err = audit.SaveTo(api.db, context.Background())
 
-	return err
+	if err == model.ErrAuditNotFound {
+		return ctx.JSON(http.StatusNotFound, NotFound{
+			Entity: "audit",
+			ID:     id,
+		})
+	}
+
+	if err != nil {
+		log.Println("ERROR:", err.Error())
+		return ctx.JSON(http.StatusInternalServerError, internalError)
+	}
+
+	return ctx.JSON(http.StatusOK, updated)
 }
