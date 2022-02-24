@@ -3,6 +3,7 @@ package webapi
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/labstack/echo/v4"
 
@@ -29,7 +30,7 @@ type (
 )
 
 func Start(c Config) error {
-	var db, err = sql.Open("postgres", "<connection string>")
+	var db, err = sql.Open("postgres", c.DB.ConnectionString())
 	if err != nil {
 		return err
 	}
@@ -44,6 +45,11 @@ func Start(c Config) error {
 
 	newAuditAPI(pg).install(e.Group("/audit"))
 	return e.Start(c.HTTP.Address)
+}
+
+func (db DBConfig) ConnectionString() string {
+	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+		db.Host, db.Port, db.User, db.Password, db.Name)
 }
 
 type postgres struct {
