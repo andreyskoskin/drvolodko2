@@ -1,0 +1,16 @@
+POST http://localhost:8080/auditor/
+Content-Type: application/json
+
+{
+  "first_name": "Volodko",
+  "last_name": "Doktor",
+  "position_id": 42
+}
+
+###
+
+GET http://localhost:8080/auditor/
+
+###
+
+GET http://localhost:8080/auditor/1
