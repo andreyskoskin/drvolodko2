@@ -1,27 +1,54 @@
 package main
 
 import (
+	"io"
 	"log"
 
-	_ "github.com/lib/pq"
+	"github.com/andreyskoskin/drvolodko2/api"
+	"github.com/andreyskoskin/drvolodko2/api/auditor"
+	"github.com/andreyskoskin/drvolodko2/datamodel"
+	"github.com/andreyskoskin/drvolodko2/datasource"
 
-	"github.com/andreyskoskin/drvolodko2/localenv"
+	"github.com/andreyskoskin/drvolodko2/api/auditprogram"
 )
 
+var config = Config{
+	Echo: api.EchoConfig{
+		Address: "localhost:8080",
+	},
+}
+
+type DataSource interface {
+	io.Closer
+	AuditPrograms() datamodel.AuditPrograms
+	Auditors() datamodel.Auditors
+}
+
 func main() {
-	var ldb, err = localenv.NewLocalDB(localenv.DefaultConfig().DB)
+	// TODO: load config from file
+
+	var ds, err = initDataSource(config)
 	if err != nil {
 		log.Fatalln(err)
 	}
 	defer func() {
-		_ = ldb.Close()
+		_ = ds.Close()
 	}()
 
-	if err := ldb.Init(); err != nil {
+	err = api.StartEcho(config.Echo, api.EchoBindings{
+		"/audit-program": auditprogram.NewEchoAPI(ds.AuditPrograms()),
+		"/auditor":       auditor.NewEchoAPI(ds.Auditors()),
+	})
+
+	if err != nil {
 		log.Fatalln(err)
+	}
+}
+
+func initDataSource(c Config) (DataSource, error) {
+	if c.Postgres.DBName == "" {
+		return datasource.NewInMemory(), nil
 	}
 
-	if err := ldb.Test(); err != nil {
-		log.Fatalln(err)
-	}
+	return datasource.NewPostgres(c.Postgres)
 }
